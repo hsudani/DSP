@@ -1,17 +1,23 @@
 .PHONY: all clean run
-CC=gcc
-CFLAGS=-std=c99 -O2
+CC=g++
+CFLAGS= -std=c++11 -g
 LDFLAGS=-lm
-TARGET=train test
+TARGET=train test try
 TRAIN_ITER=100
 
 all: $(TARGET)
 
-train: src/train.c
+train: src/train.cpp
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) -Iinc
 
-test: src/test.c
+try: src/try.cpp
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) -Iinc
+
+test: src/test.cpp
+	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) -Iinc
+
+models.o: inc/models.h src/models.cpp
+	$(CC) -c $@ $^ $(CFLAGS) $(LDFLAGS) -Iinc
 
 clean:
 	rm -f $(TARGET)
