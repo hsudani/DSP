@@ -39,7 +39,7 @@ public:
 
 trainmodels::trainmodels(/* args */)
 {
-    alpha[0][0]=0;
+    // alpha[0][0]=0;
 };
 
 trainmodels::~trainmodels()
@@ -47,44 +47,17 @@ trainmodels::~trainmodels()
 };
 
 void trainmodels::reset_var(){
-    for (int i = 0; i < MAX_SEQ ;++i)
-        for (int j = 0; j < MAX_STATE; ++j)
-        {
-            alpha[i][j] = 0;
-            beta[i][j] = 0;
-            gamma[i][j] = 0;
-        }
-    for (int i = 0; i < MAX_STATE ;++i)
-        for (int j = 0; j < MAX_OBSERV; ++j)
-            gamma_observe[j][i] = 0;
-
-    for (int i = 0; i < MAX_SEQ; ++i)
-        for (int j = 0; j < MAX_STATE; ++j)
-            for (int k = 0; k < MAX_STATE; ++k)
-                epsilon[i][j][k] = 0;
-
-    // for(int i=0;i<MAX_SEQ;++i){
-    //     for(int j=0;j<MAX_STATE;++j){
-    //         alpha[i][j] = 0;
-    //         beta[i][j] = 0;
-    //     }
-    // }
-    // for(int t=0;t<train_len;++t){
-    //     for(int i=0;i<train_len)
-    // }
-
-    // for(int t=0;t<train_len;++t){
-    //     for(int i=0;i<hmm->state_num;++i){
-    //         for(int j=0; j<hmm->state_num;++j)
-    //             epsilon[t][i][j] = 0;
-    //     }
-    // }
-    // memset(alpha, 0, sizeof alpha);
-    // memset(beta, 0, sizeof beta);
-    // memset(epsilon, 0, sizeof epsilon);
+    memset(alpha, 0, sizeof alpha);
+    memset(beta, 0, sizeof beta);
+    memset(epsilon, 0, sizeof epsilon);
     memset(gamma, 0, sizeof gamma);
     memset(gamma_observe, 0, sizeof gamma_observe);
     memset(P_term, 0, sizeof P_term);
+    memset(accumulate_gamma, 0, sizeof accumulate_gamma);
+    memset(accumulate_epsilon_t1, 0, sizeof accumulate_epsilon_t1);
+    memset(accumulate_gamma_t1, 0, sizeof accumulate_gamma_t1);
+    memset(accumulate_observ_gamma, 0, sizeof accumulate_observ_gamma);
+    memset(accumulate_gamma_t,0, sizeof accumulate_gamma_t);
     
 };
 
@@ -118,14 +91,15 @@ void trainmodels::read_file(const char *filename)
 
 void trainmodels::forward(const char* Ot){
     // init
-    for(int i=0;i<hmm->state_num;++i)
-        alpha[0][i]=hmm->initial[i]*hmm->observation[Ot[i]-'A'][i];
+    for(int i=0;i<hmm->state_num;++i){
+        alpha[0][i]= (hmm->initial[i]) * (hmm->observation[Ot[0]-'A'][i]);
+    }
     // induction
     for(int t=0;t<train_len-1;++t){
         for(int j=0; j<hmm->state_num;++j){
             double sum = 0;
-            for(int a = 0;a<hmm->state_num;++a)
-                sum += alpha[t][a]*hmm->transition[a][j];
+            for(int i = 0;i<hmm->state_num;++i)
+                sum += (alpha[t][i])*(hmm->transition[i][j]);
             alpha[t+1][j] = sum*hmm->observation[Ot[t+1]-'A'][j];
         }
     }
@@ -146,11 +120,9 @@ void trainmodels::backward(const char* Ot){
     // induction
     for(int t=train_len-2;t>-1;--t){
         for(int i=0;i<hmm->state_num;++i){
-            double sum = 0;
-            for(int b=0;b<hmm->state_num;++b){
-                sum += hmm->transition[i][b]*hmm->observation[Ot[t+1]-'A'][b]*beta[t+1][b];
+            for(int j=0;j<hmm->state_num;++j){
+                beta[t][i] += hmm->transition[i][j]*hmm->observation[Ot[t+1]-'A'][j]*beta[t+1][j];
             }
-            beta[t][i] = sum;
         }
     }
 
@@ -159,8 +131,9 @@ void trainmodels::backward(const char* Ot){
 void trainmodels::calculate_gamma(const char* Ot){
     for(int t=0;t<train_len;++t){
         double sum = 0;
-        for(int i=0;i<hmm->state_num;++i)
-            sum += alpha[t][i]*beta[t][i];
+        for(int j=0;j<hmm->state_num;++j){
+            sum += alpha[t][j]*beta[t][j];
+        }
         for(int i=0;i<hmm->state_num;++i){
             gamma[t][i] = alpha[t][i]*beta[t][i]/sum;
         }
@@ -172,32 +145,34 @@ void trainmodels::calculate_gamma(const char* Ot){
 };
 
 void trainmodels::calculate_epsilon(const char* Ot){
-    for(int t=0;t<train_len;++t){
+    for(int t=0;t<train_len-1;++t){
         double sum=0;
         for(int i=0;i<hmm->state_num;++i){
             for(int j=0;j<hmm->state_num;++j){
-                sum += alpha[t][i]*hmm->transition[i][j]*hmm->observation[Ot[t+1]-'A'][j]*beta[t+1][j];
+                sum += alpha[t][i]*(hmm->transition[i][j])*hmm->observation[Ot[t+1]-'A'][j]*beta[t+1][j];
             }
         }
         for(int i=0;i<hmm->state_num;++i){
             for(int j=0;j<hmm->state_num;++j){
-                epsilon[t][i][j] = alpha[t][i]*hmm->transition[i][j]*hmm->observation[Ot[t+1]-'A'][j]*beta[t+1][j]/sum;
+                epsilon[t][i][j] = (alpha[t][i]*(hmm->transition[i][j])*hmm->observation[Ot[t+1]-'A'][j]*beta[t+1][j]) / sum;
             }
         }
     }
-    
 };
+
 void trainmodels::accumulate(){
     for(int i=0;i<hmm->state_num;++i)
         accumulate_gamma[i] += gamma[0][i];
     
     for(int i=0;i<hmm->state_num;++i){
         for(int j=0;j<hmm->state_num;++j){
-            for(int t=0;t<train_len-1;++t)
+            for(int t=0;t<train_len-1;++t){
                 accumulate_epsilon_t1[i][j] += epsilon[t][i][j];
+            }
         }
-        for(int aa=0;aa<train_len-1;++aa)
+        for(int aa=0;aa<train_len-1;++aa){
             accumulate_gamma_t1[i] += gamma[aa][i];
+        }
     }
     
     for(int i=0;i<hmm->state_num;++i){
@@ -225,7 +200,7 @@ void trainmodels::update_model(){
             // accumulate_observ_gamma[ob][i]/accumulate_gamma_t[i];
         }
     }
-    // reset_var();
+    
 };
 
 void trainmodels::train(int epoch=1){
@@ -243,23 +218,32 @@ void trainmodels::train(int epoch=1){
 };
 
 // ==================================================================================================================
-int main()
+int main(int argc, char *argv[])
 {
 /*
 	HMM hmms[5];
 	load_models( "modellist.txt", hmms, 5);
 	dump_models( hmms, 5);
 */
+    if(argc!=5){
+        printf("incorrect inputs : %d\n",argc);
+        exit(-1);
+    }
+    int iter =atoi(argv[1]);
+    // printf("iter %d \n",iter);
+
+    // load initial path : argv[2] = model_init_path
 	HMM hmm_initial;
-	loadHMM( &hmm_initial, "model_init.txt" );
-	// BWalg train_test(hmm_initial);
-    // train_test.load_train("data/train_seq_01.txt");
-    // train_test.train(2);
+	loadHMM( &hmm_initial, argv[2] );
     trainmodels train_test(hmm_initial);
-    train_test.read_file("data/train_seq_02.txt");
-    train_test.train(1);
-    dumpHMM( stderr, &hmm_initial );
-    // train_test
-    printf("log(0.5) = %f\n", log(1.5) );
-	return 0;
+    
+    // sequence path : argv[3] = seq_path
+    train_test.read_file(argv[3]);
+    train_test.train(iter);
+    // output model path : argv[4]
+    FILE *output_model = open_or_die(argv[4],"w");
+    dumpHMM( output_model, &hmm_initial );
+    dump_models( &hmm_initial,1 );
+    
+    return 0;
 }

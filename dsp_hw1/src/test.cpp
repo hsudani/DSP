@@ -14,7 +14,8 @@ private:
     int test_lines = 0;
     int test_len = 0;
     int model_num = 0;
-
+    int result_path[TRAIN_SIZE]={0};
+    double result_prob[TRAIN_SIZE]={0};
 
 public:
     testmodels(/* args */);
@@ -23,6 +24,7 @@ public:
     void read_models(const char *);
     double recursion(HMM &, const char*);
     void run_all_models();
+    void output_result(const char*);
 };
 
 testmodels::testmodels(/* args */)
@@ -50,32 +52,34 @@ void testmodels::read_file(const char *filename)
 
 void testmodels::read_models(const char *filename)
 {
+    // filename : 
     FILE *fp = open_or_die(filename, "r");
     char token[MAX_LINE] = "";
-    int model_num=0;
+    model_num=0;
     while(fscanf(fp, "%s", token) > 0 && model_num<MAX_MODEL)
     {
         HMM temp;
-        char* modle_path = {'\0'};
         loadHMM(&temp,token);
         hmm[model_num] = temp;
         model_num++;
     }
-    
+    // printf("model num : %d",model_num);
     fclose(fp);
 };
 
 double testmodels::recursion(HMM &h, const char *Ot){
     // initiate
-    for(int i=0;i<h.state_num;++i)
-        sigma[0][i]=h.initial[i]*h.observation[Ot[0]-'A'][i];
+    for(int i=0;i<h.state_num;++i){
+        sigma[0][i]=(h.initial[i])*(h.observation[Ot[0]-'A'][i]);
+    }
     // recursion
     for(int t=1;t<test_len;++t){
         for(int j=0;j<h.state_num;++j){
             sigma[t][j]=0;
+            // get max
             for(int i=0;i<h.state_num;++i){
-                if(sigma[t][j]<(sigma[t-1][j]*h.transition[i][j])){
-                    sigma[t][j]=sigma[t-1][j]*h.transition[i][j];
+                if(sigma[t][j] < ((sigma[t-1][i])*(h.transition[i][j])) ){
+                    sigma[t][j] = (sigma[t-1][i])*(h.transition[i][j]);
                 }
             }
             sigma[t][j] = sigma[t][j]*h.observation[Ot[t]-'A'][j];
@@ -93,23 +97,51 @@ double testmodels::recursion(HMM &h, const char *Ot){
 };
 
 void testmodels::run_all_models(){
-    for(int i=0;i<model_num;++i){
-
+    for(int t=0;t<test_lines;++t){
+        double max_prob=0;
+        int max_path=0;
+        for(int i=0;i<model_num;++i){
+            double prob=0;
+            prob=recursion(hmm[i],testing_data[t]);
+            if(max_prob<prob){
+                max_prob=prob;
+                max_path=i;
+            }
+        }
+        result_prob[t]=max_prob;
+        result_path[t]=max_path+1;
     }
+}
+void testmodels::output_result(const char * path){
+    FILE *fl = open_or_die(path,"w");
+    for(int i=0;i<test_lines;++i){
+        fprintf(fl,"model_%02d.txt %.7e\n",result_path[i],result_prob[i]);
+    }
+    
+    
 }
 
 
-int main()
+int main(int argc, char *argv[])
 {
 /*
 	HMM hmms[5];
 	load_models( "modellist.txt", hmms, 5);
 	dump_models( hmms, 5);
 */
-	HMM hmm_initial;
-	loadHMM( &hmm_initial, "../model_init.txt" );
-	dumpHMM( stderr, &hmm_initial );
+    if(argc!=4){
+        printf("incorrect inputs : %d\n",argc);
+        exit(-1);
+    }
+	testmodels testing;
+    // model list path : argv[1]
+    testing.read_models(argv[1]);
+    // seq path : argv[2]
+    testing.read_file(argv[2]);
+    // testing
+    testing.run_all_models();
+    // output path : argv[3]
+    testing.output_result(argv[3]);
 
-	printf("log(0.5) = %f\n", log(1.5) );
 	return 0;
 }

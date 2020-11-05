@@ -1,0 +1,3 @@
+./test modellist_small.txt data/test_seq_small.txt result.txt
+./test modellist.txt data/test_seq.txt result.txt
+
