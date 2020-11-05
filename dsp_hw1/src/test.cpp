@@ -131,6 +131,25 @@ int main(int argc, char *argv[])
 */
     if(argc!=4){
         printf("incorrect inputs : %d\n",argc);
+        FILE *read_ans = open_or_die("data/test_lbl.txt","r");
+        FILE *read_result = open_or_die("result.txt","r");
+        
+        char ans_char[MAX_LINE]="";
+        char result_char[MAX_LINE]="";
+        
+        double correct=0;
+        double totalline=0;
+        while ((fscanf(read_ans, "%s" ,ans_char)>0 )&& (fscanf(read_result, "%s" ,result_char)))
+        {
+            if(ans_char[7]==result_char[7]){
+                correct++;
+            }
+            totalline++;
+        }
+        double score = correct/totalline*100;
+        printf("correctness : %f %\n",score);
+        
+
         exit(-1);
     }
 	testmodels testing;

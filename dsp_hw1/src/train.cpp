@@ -97,10 +97,11 @@ void trainmodels::forward(const char* Ot){
     // induction
     for(int t=0;t<train_len-1;++t){
         for(int j=0; j<hmm->state_num;++j){
-            double sum = 0;
-            for(int i = 0;i<hmm->state_num;++i)
-                sum += (alpha[t][i])*(hmm->transition[i][j]);
-            alpha[t+1][j] = sum*hmm->observation[Ot[t+1]-'A'][j];
+            // double sum = 0;
+            for(int i = 0;i<hmm->state_num;++i){
+                alpha[t+1][j] += (alpha[t][i])*(hmm->transition[i][j])*(hmm->observation[Ot[t+1]-'A'][j]); //=========================
+            }
+            // alpha[t+1][j] = sum*hmm->observation[Ot[t+1]-'A'][j];
         }
     }
     for(int t = 0; t<train_len;++t){
@@ -227,6 +228,8 @@ int main(int argc, char *argv[])
 */
     if(argc!=5){
         printf("incorrect inputs : %d\n",argc);
+        // int a[2][3]={{1,2,3},{4,5,6}};
+        // printf("%d %d %d \n",a[0][0],a[0][1],a[0][2]);
         exit(-1);
     }
     int iter =atoi(argv[1]);
